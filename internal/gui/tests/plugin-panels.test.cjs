@@ -18,7 +18,7 @@ const { test } = require("node:test");
 const { agentRow, reach } = require("./reader.cjs");
 const { chromium, webkit } = require("playwright");
 
-const assets = path.resolve(__dirname, "../assets");
+const assets = process.env.MAGPIE_ASSETS || path.resolve(__dirname, "../assets");
 const example = path.resolve(__dirname, "../testdata/panel-plugin/ui");
 const bridge = path.resolve(__dirname, "../pagebridge.js");
 
@@ -63,7 +63,12 @@ function server(lang, seen, opts) {
     if (url.pathname === "/api/plugin-pages/options") {
       const b = req.postDataJSON();
       if (b.spec === "/x/native-settings") {
-        if (b.options) seen.nativeSaved = b.options;
+        if (b.options) {
+          opts.nativeSaveAsked?.();
+          if (opts.nativeSaveGate) await opts.nativeSaveGate;
+          if (opts.failNativeSave) return route.fulfill({ status: 500, json: { error: "fixture: save failed" } });
+          seen.nativeSaved = b.options;
+        }
         return json(seen.nativeSaved || { future: "keep" });
       }
       if (b.options) { seen.options.push(b); seen.saved = b.options; }
@@ -259,6 +264,51 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.deepEqual(errors.filter((e) => e !== "fixture: the panel broke"), [], where);
         await context.close();
       }
+    }
+  });
+
+  test(`${engine}: native settings freeze edits until save settles and allow failure retry`, async (t) => {
+    const browser = await (engine === "webkit" ? webkit.launch() : chromium.launch({ channel: "chromium" }));
+    t.after(() => browser.close());
+    for (const lang of ["zh", "en"]) for (const width of [1100, 420]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: "reduce" });
+      let releaseSave, saveAsked;
+      const gate = new Promise((r) => { releaseSave = r; });
+      const asked = new Promise((r) => { saveAsked = r; });
+      const native = { ...allPanels[0], settings: { groups: [{ title: "VLM", fields: [{ key: "vlmParameters.max_concurrent", type: "integer", title: "Concurrency", minimum: 1, default: 2 }] }] } };
+      const seen = { reads: [], options: [], nativeSaved: { future: "keep", vlmParameters: { max_concurrent: 2 } } };
+      const opts = { pages: [], panels: [native], nativeSaveGate: gate, nativeSaveAsked: saveAsked };
+      const errors = []; page.on("pageerror", (e) => errors.push(e.message));
+      await page.route("**/*", server(lang, seen, opts));
+      try {
+        await page.goto("http://magpie.test/?view=agents");
+        await page.locator('.row.agent[data-id="openviking-models"] .ag-link').click();
+        const panel = page.locator(".plugin-native-settings");
+        const input = panel.locator('[data-option="vlmParameters.max_concurrent"] input');
+        const save = panel.locator(".plugin-settings-actions button");
+        await input.fill("4"); await input.press("Tab"); await save.press("Enter");
+        await asked;
+        assert.equal(await input.isDisabled(), true, "parameters cannot be edited while saving");
+        assert.equal(await save.isDisabled(), true);
+        releaseSave();
+        await page.waitForFunction(() => document.querySelector('.plugin-settings-actions [role="status"]').textContent !== "");
+        assert.equal(seen.nativeSaved.vlmParameters.max_concurrent, 4);
+        assert.equal(await input.isEnabled(), true);
+        assert.equal(await save.isDisabled(), true);
+        // A later edit is still savable. A failed request must retain it.
+        await input.fill("8"); await input.press("Tab"); opts.failNativeSave = true;
+        await save.press("Enter");
+        await panel.getByRole("status").filter({ hasText: "fixture: save failed" }).waitFor();
+        assert.equal(await input.isEnabled(), true);
+        assert.equal(await save.isEnabled(), true);
+        assert.equal(seen.nativeSaved.vlmParameters.max_concurrent, 4);
+        opts.failNativeSave = false; await save.press("Enter");
+        await page.waitForFunction(() => document.querySelector('.plugin-settings-actions button').disabled);
+        await panel.getByRole("status").filter({ hasText: lang === "zh" ? "已保存" : "Saved" }).waitFor();
+        assert.equal(seen.nativeSaved.vlmParameters.max_concurrent, 8);
+        assert.equal(seen.nativeSaved.future, "keep");
+        assert.deepEqual(errors, []);
+      } finally { releaseSave(); await page.close(); }
     }
   });
 

@@ -2745,3 +2745,5 @@ and 420px, in Chromium and WebKit (chen2652). `ARTIFACT_DIR` keeps the row's
 screenshots.
 
 `plugin-panels.test.cjs` also checks a targeted `agent` panel inside its connected Agent row, its id/name context, absence from another agent and full-width layout in wide and narrow windows.
+
+`plugin-panels.test.cjs` holds native settings saves to verify controls freeze until completion, later edits remain savable, and failures retain the draft for retry (Chinese/English, wide/narrow).

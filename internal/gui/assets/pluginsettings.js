@@ -26,7 +26,7 @@ window.pluginSettingsFill = async function (body, entry) {
     for (const [field, input, pane] of inputs) if (active(field) && !input.hidden && !input.checkValidity()) {
       tabs.querySelectorAll("button")[panes.indexOf(pane)].click(); input.reportValidity(); input.focus(); return;
     }
-    saving = true; save.disabled = true; save.textContent = t("Saving…");
+    saving = true; updateControls(); save.disabled = true; save.textContent = t("Saving…");
     try {
       // Preserve options changed by another editor and all unexposed fields.
       const next = await api("plugin-pages/options", { spec: entry.spec });
@@ -34,13 +34,17 @@ window.pluginSettingsFill = async function (body, entry) {
       await api("plugin-pages/options", { spec: entry.spec, options: next });
       changes.clear(); message.textContent = t("Saved");
     } catch (err) { message.textContent = String(err.message || err); }
-    finally { saving = false; save.textContent = t("Save"); save.disabled = !changes.size; }
+    finally { saving = false; updateControls(); save.textContent = t("Save"); save.disabled = !changes.size; }
   });
   save.disabled = true;
   function changed(key, value) {
+    if (saving) return;
     put(values, key, value); changes.set(key, value); message.textContent = ""; save.disabled = false;
+    updateControls();
+  }
+  function updateControls() {
     for (const [field, row] of rows) {
-      const enabled = active(field);
+      const enabled = active(field) && !saving;
       row.classList.toggle("disabled", !enabled);
       for (const control of row.querySelectorAll("button,input")) control.disabled = !enabled;
     }

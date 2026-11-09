@@ -300,7 +300,9 @@ starts a Bun host.
   options; `when` enables a field only while each named option matches one
   of its listed values. Optional fields distinguish an absent value (keep
   existing), explicit null (default, if nullable), and a custom value.
-  Save merges only edited paths into fresh plugin options. A malformed
+  Save merges only edited paths into fresh plugin options. Setting controls
+  are disabled from the start of Save until its read/write settles; errors
+  retain the draft and re-enable its applicable controls for retry. A malformed
   declaration is ignored; the HTML file remains a compatibility fallback.
   There are at most eight groups and 64 unique scalar fields, with safe
   option paths and no access to another plugin's options. `file` is an .html in
