@@ -1518,7 +1518,7 @@
   // where a plugin's panels go in magpie's own pages (magpie.panels), and
   // the row menus its page adds items to (magpie.actions), titled with
   // their titles; picking an item tells the page the row's name only
-  const SLOTS = { agents: "the Agents page", usage: "the Usage page", settings: "Settings", provider: "each provider's editor" };
+  const SLOTS = { agent: "the Agents page", agents: "the Agents page", usage: "the Usage page", settings: "Settings", provider: "each provider's editor" };
   const MENUS = { provider: "providers' menus", agent: "agents' menus" };
   function whereLine(xs, key, names, text) {
     const d = el("div", "sub pm-mw pm-page");

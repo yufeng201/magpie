@@ -3802,6 +3802,8 @@ body:not(.side-nav) #view-settings .set-head.stuck::before { box-shadow: 0 1px 0
 /* a plugin's panels in magpie's own pages (P5): each a card, as tall as
    what its frame draws, under its title */
 .plugin-slot { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.plugin-slot[data-slot="agent"] { display: contents; }
+.plugin-slot[data-slot="agent"] > .ag-kv > .ag-v { padding: 0; margin: 11px 0; }
 .plugin-slot[hidden] { display: none; }
 .plugin-panel > .row-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
 .plugin-panel > .row-head .note { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -4970,3 +4972,10 @@ body .row.agent .ag-prefs .row.pref .who { display: block; }
 .sess-tools .led-rename { flex: none; width: 180px; height: 26px; padding: 0 8px; border-radius: 7px; font-size: 12px; }
 /* Settings › About › Open-source licenses: the notices, as written */
 .notices-text { margin: 0; font: 11px/1.5 var(--code); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.plugin-native-settings.plugin-panel-body { border: 0; background: transparent; overflow: visible; }
+.plugin-settings-groups { display: grid; gap: 12px; min-width: 0; }
+.plugin-setting-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.plugin-setting-controls .set-field { width: 100px; min-width: 60px; }
+.plugin-settings-actions { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.plugin-native-settings .disabled { opacity: .5; }

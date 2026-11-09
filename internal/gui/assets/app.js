@@ -2295,6 +2295,8 @@ function connectPanel(a, { fields, fieldBtn }) {
       loadSettings().then(() => { list.hidden = false; }, statusErr);
     }
   }
+  const panels = magpie.slot?.("agent", { agent: { id: a.id, name: a.name } });
+  if (panels) settings.append(panels);
   if (a.launch) {
     const cp = el("button", "ag-quiet", t("Copy"));
     cp.type = "button";

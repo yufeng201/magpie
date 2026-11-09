@@ -64,11 +64,13 @@ type ServiceSpec struct {
 // PanelSpec is a panel a plugin adds to one of magpie's own pages: a
 // part of that page, drawn by the plugin's HTML in a frame of its own.
 type PanelSpec struct {
-	Slot   string // one of PanelSlots
-	Title  string // "" when it names none
-	Titles map[string]string
-	File   string // the panel's HTML, inside the plugin's folder
-	Dir    string // the folder the panel's files are served from: File's
+	Slot     string         // one of PanelSlots
+	Agent    string         // required for slot agent: the one agent id it belongs to
+	Settings *PanelSettings // native options controls instead of an HTML file
+	Title    string         // "" when it names none
+	Titles   map[string]string
+	File     string // the panel's HTML, inside the plugin's folder
+	Dir      string // the folder the panel's files are served from: File's
 }
 
 // ActionSpec is an item a plugin adds to one of magpie's menus
@@ -100,8 +102,9 @@ var PageReads = []string{"usage:summary", "providers:list"}
 // PanelSlots are the places in magpie's own pages a plugin's panel can
 // go: under the Agents page's list, at the end of the Usage page, on
 // Settings' Plugins tab, and in a provider's editor (which tells the
-// panel the provider's id and name).
-var PanelSlots = []string{"agents", "usage", "settings", "provider"}
+// panel the provider's id and name), and inside the expanded row of the
+// one agent its manifest names (told the agent's id and name).
+var PanelSlots = []string{"agents", "usage", "settings", "provider", "agent"}
 
 // Replaceable are the built-in pages a plugin's page can take the place
 // of: the pages that are built-in plugins of their own.
@@ -157,6 +160,8 @@ func Window(target string) (w *WindowSpec, only bool) {
 		File      string          `json:"file"`
 		Icon      string          `json:"icon"`
 		Slot      string          `json:"slot"`
+		Agent     string          `json:"agent"`
+		Settings  json.RawMessage `json:"settings"`
 		Replaces  string          `json:"replaces"`
 		ID        string          `json:"id"`
 		Menu      string          `json:"menu"`
@@ -204,10 +209,12 @@ func Window(target string) (w *WindowSpec, only bool) {
 		}
 		slot := strings.TrimSpace(pn.Slot)
 		file, ok := htmlInside(target, pn.File)
-		if !ok || !slices.Contains(PanelSlots, slot) {
+		settings := panelSettings(pn.Settings)
+		agent := strings.TrimSpace(pn.Agent)
+		if (!ok && settings == nil) || !slices.Contains(PanelSlots, slot) || (slot == "agent" && agent == "") {
 			continue
 		}
-		w.Panels = append(w.Panels, PanelSpec{Slot: slot, Title: strings.TrimSpace(pn.Title), Titles: titles(pn.Titles), File: file, Dir: filepath.Dir(file)})
+		w.Panels = append(w.Panels, PanelSpec{Slot: slot, Agent: agent, Settings: settings, Title: strings.TrimSpace(pn.Title), Titles: titles(pn.Titles), File: file, Dir: filepath.Dir(file)})
 	}
 	// an action opens the plugin's page, so a plugin with none has no
 	// action; an id given twice is the first's

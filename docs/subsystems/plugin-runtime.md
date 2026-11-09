@@ -288,7 +288,22 @@ starts a Bun host.
   of the Agents page), `usage` (the end of Usage's Overview), `settings` (a
   Plugins tab in Settings, shown only while a panel is in it, in the tab
   strip and in the sidebar of a wide window) and `provider` (each saved
-  provider's editor, told `{provider: {id, name}}`). `file` is an .html in
+  provider's editor, told `{provider: {id, name}}`) and `agent` (inside a
+  connected agent's expanded settings). An `agent` panel must also name
+  `agent: "the-agent-id"`; without an id it is ignored. It appears only in
+  that row, after its native settings, and receives `{agent: {id, name}}`.
+  Its title is the settings row's left-hand label. `settings: {groups: [{title,
+  titles, fields: [{key, type, title, titles, description, descriptions,
+  default, optional, nullable, minimum, maximum, choices, when}]}]}` instead
+  draws native `magpie.ui` rows, menus, switches and fields, without plugin
+  scripts in the window. `key` is a dotted path into that plugin's own
+  options; `when` enables a field only while each named option matches one
+  of its listed values. Optional fields distinguish an absent value (keep
+  existing), explicit null (default, if nullable), and a custom value.
+  Save merges only edited paths into fresh plugin options. A malformed
+  declaration is ignored; the HTML file remains a compatibility fallback.
+  There are at most eight groups and 64 unique scalar fields, with safe
+  option paths and no access to another plugin's options. `file` is an .html in
   the plugin's folder (`plugin.FileIn`). `GET /api/plugin-panels` lists an
   on plugin's panels in plugins.json order, each with a token of its own
   (`pageToken(spec + "\x00panel\x00" + i)`), served under the same policy

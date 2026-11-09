@@ -12,6 +12,7 @@
 //                                 magpie.permissions declares
 //   magpie.context                where a panel is (P5): { provider: {
 //                                 id, name } } in a provider's editor,
+//                                 { agent: { id, name } } in an agent row,
 //                                 else {}; set once magpie.ready is
 //   magpie.service               the address of the page's local service
 //                                 (package.json's magpie.page.service)

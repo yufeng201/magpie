@@ -175,3 +175,34 @@ func TestPluginPageReplacesFirstWins(t *testing.T) {
 		t.Errorf("the second: %+v", pages[1])
 	}
 }
+
+// The API keeps an agent panel's target so the window never draws it on
+// another agent.
+func TestPluginAgentPanelTarget(t *testing.T) {
+	on, _, _, _ := panelPlugins(t)
+	pkg := `{"name":"notes","magpie":{"panels":[{"slot":"agent","agent":"openviking-models","title":"Settings","file":"ui/notes.html"}]}}`
+	if err := os.WriteFile(filepath.Join(on, "package.json"), []byte(pkg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := do(pageMux(), httptest.NewRequest("GET", "/api/plugin-panels", nil))
+	var panels []pluginPanel
+	if err := json.Unmarshal(w.Body.Bytes(), &panels); err != nil || len(panels) != 1 || panels[0].Agent != "openviking-models" || panels[0].Slot != "agent" {
+		t.Fatalf("targeted panel: %s %v", w.Body, err)
+	}
+}
+
+func TestPluginNativeSettingsPanel(t *testing.T) {
+	on, _, _, _ := panelPlugins(t)
+	pkg := `{"name":"notes","magpie":{"panels":[{"slot":"agent","agent":"openviking-models","title":"Settings","settings":{"groups":[{"title":"VLM","fields":[{"key":"vlmParameters.thinking","type":"boolean","title":"Thinking","optional":true}]}]}}]}}`
+	if err := os.WriteFile(filepath.Join(on, "package.json"), []byte(pkg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := do(pageMux(), httptest.NewRequest("GET", "/api/plugin-panels", nil))
+	var panels []pluginPanel
+	if err := json.Unmarshal(w.Body.Bytes(), &panels); err != nil || len(panels) != 1 || panels[0].Settings == nil || panels[0].URL != "" {
+		t.Fatalf("native settings: %s %v", w.Body, err)
+	}
+	if panels[0].Settings.Groups[0].Fields[0].Key != "vlmParameters.thinking" {
+		t.Fatalf("field lost: %+v", panels[0])
+	}
+}

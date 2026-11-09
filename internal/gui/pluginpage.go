@@ -108,18 +108,20 @@ type pluginAction struct {
 // pluginPanel is a panel a plugin that is on adds to one of magpie's own
 // pages (plugin.PanelSlots).
 type pluginPanel struct {
-	Spec   string            `json:"spec"`
-	Name   string            `json:"name"`  // its package's
-	Key    string            `json:"key"`   // the panel's, among every plugin's
-	Slot   string            `json:"slot"`  // the page it is in
-	Title  string            `json:"title"` // the panel's, or the package's magpie.name or short name
-	Titles map[string]string `json:"titles,omitempty"`
-	URL    string            `json:"url"`   // the panel, under pluginPagePrefix
-	Reads  []string          `json:"reads"` // what it may read, of plugin.PageReads
-	token  string
-	dir    string
-	file   string
-	hosted bool
+	Spec     string                `json:"spec"`
+	Name     string                `json:"name"` // its package's
+	Key      string                `json:"key"`  // the panel's, among every plugin's
+	Settings *plugin.PanelSettings `json:"settings,omitempty"`
+	Agent    string                `json:"agent,omitempty"` // the agent row, for slot agent
+	Slot     string                `json:"slot"`            // the page it is in
+	Title    string                `json:"title"`           // the panel's, or the package's magpie.name or short name
+	Titles   map[string]string     `json:"titles,omitempty"`
+	URL      string                `json:"url"`   // the panel, under pluginPagePrefix
+	Reads    []string              `json:"reads"` // what it may read, of plugin.PageReads
+	token    string
+	dir      string
+	file     string
+	hosted   bool
 }
 
 // pageKeyChars are what a window page's key can't have
@@ -184,9 +186,13 @@ func windowParts() (pages []pluginPage, panels []pluginPanel) {
 			pages = append(pages, p)
 		}
 		for i, spec := range w.Panels {
+			if spec.Settings != nil {
+				panels = append(panels, pluginPanel{Spec: e.Spec, Name: name, Key: fmt.Sprintf("%s-%d", key, i), Slot: spec.Slot, Agent: spec.Agent, Title: cmp.Or(spec.Title, name), Titles: spec.Titles, Reads: reads, Settings: spec.Settings})
+				continue
+			}
 			tok := pageToken(e.Spec + "\x00panel\x00" + strconv.Itoa(i))
 			rel, _ := filepath.Rel(spec.Dir, spec.File)
-			p := pluginPanel{Spec: e.Spec, Name: name, Key: fmt.Sprintf("%s-%d", key, i), Slot: spec.Slot, Title: spec.Title, Titles: spec.Titles, Reads: reads,
+			p := pluginPanel{Spec: e.Spec, Name: name, Key: fmt.Sprintf("%s-%d", key, i), Slot: spec.Slot, Agent: spec.Agent, Title: spec.Title, Titles: spec.Titles, Reads: reads,
 				token: tok, dir: spec.Dir, URL: pluginPagePrefix + tok + "/" + filepath.ToSlash(rel), file: filepath.ToSlash(rel), hosted: !only}
 			if p.Title == "" {
 				p.Title = cmp.Or(plugin.InstalledName(e.Spec), plugin.ShortName(name))

@@ -1,20 +1,6 @@
-// A community plugin's own page in the window (docs/subsystems/
-// plugin-runtime.md, P4): package.json's magpie.page, in a tab of the
-// sidebar's Plugins group, after the built-in pages. The page runs in a
-// frame sandboxed to scripts alone, in an origin of its own: it has no
-// way to the window, to magpie's API (apiFramed) or to the network (its
-// policy, pluginpage.go). What it asks of the window comes by message,
-// from that frame only, and the window answers only what the page may:
-// the theme, its own options, and the reads its package declared
-// (magpie.permissions), which /api/plugin-pages/read checks again.
-// A page that throws, or never says hello, shows the kernel's "This
-// page stopped working" with its Try again.
-//
-// Panels (magpie.panels, P5) are framed the same way in a page's
-// .plugin-slot, as tall as they draw, and one that breaks says so in its
-// place. A page may take a built-in one's place (magpie.page.replaces),
-// and its actions (magpie.actions, P6) are row menu items that open it:
-// plugin-runtime.md says the rest.
+// Community pages and panels (docs/subsystems/plugin-runtime.md, P4-P6).
+// HTML runs sandboxed; declarative settings use magpie's native controls.
+// Frames receive only their own options, permitted reads and row context.
 (() => {
   if (mode !== "window") return;
   // how long a page has to say hello before it is taken as broken
@@ -308,7 +294,7 @@
 
   // ---- panels ----
 
-  // how tall a panel can be, so one that says it is endless isn't
+  // Bound a panel's claimed height.
   const PANEL_MAX = 2400;
 
   function panelBroke(p, why) {
@@ -342,24 +328,26 @@
     body.replaceChildren(f);
   }
 
-  // fill a slot with the panels of its name: drawn again only when they
-  // changed, so a panel already open goes on as it is
+  // Refill changed panels, keeping open frames otherwise.
   function fill(box) {
     const name = box.dataset.slot;
-    const list = panelList.filter((e) => e.slot === name);
-    const sig = list.map((e) => e.key + " " + e.url + " " + titled(e)).join("|");
+    const context = box.pluginContext || {};
+    const list = panelList.filter((e) => e.slot === name && (name !== "agent" || (e.agent && e.agent === context.agent?.id)));
+    const sig = list.map((e) => e.key + " " + e.url + " " + titled(e) + JSON.stringify(e.settings || null)).join("|");
     if (box.dataset.sig === sig && box.childElementCount === list.length) return;
     box.dataset.sig = sig;
-    const context = box.pluginContext || {};
     const parts = list.map((e) => {
-      const sec = el("section", "plugin-panel");
+      const sec = el("section", name === "agent" ? "plugin-panel ag-kv" : "plugin-panel");
       sec.dataset.panel = e.key;
-      const head = el("div", "row-head");
+      const head = el("div", name === "agent" ? "ag-k" : "row-head");
       head.append(el("span", "label", titled(e)));
-      if (titled(e) !== e.name) head.append(el("span", "note", e.name));
-      const body = el("div", "plugin-panel-body");
+      if (name !== "agent" && titled(e) !== e.name) head.append(el("span", "note", e.name));
+      const body = el("div", name === "agent" ? "plugin-panel-body ag-v" : "plugin-panel-body");
       sec.append(head, body);
-      panelFrame(e, context, body);
+      if (e.settings) {
+        body.classList.add("plugin-native-settings");
+        import("./pluginsettings.js").then(() => pluginSettingsFill(body, e), statusErr);
+      } else panelFrame(e, context, body);
       return sec;
     });
     box.replaceChildren(...parts);
@@ -368,8 +356,7 @@
     if (name === "settings" && typeof setSetTab === "function") { setSetTab(setTab); navSubs(); }
   }
 
-  // a slot app.js draws, with what its panels are told (a provider's
-  // editor: { provider: { id, name } })
+  // A slot and the context its panels receive.
   magpie.slot = (name, context) => {
     const box = document.createElement("div");
     box.className = "plugin-slot";
@@ -380,8 +367,7 @@
     return box;
   };
 
-  // a page's markup written after the panels came (a built-in page
-  // registered late, or put back by Try again): its slots filled now
+  // Fill slots in newly mounted or retried pages.
   magpie.fillSlots = (root) => { for (const box of root.querySelectorAll(".plugin-slot[data-slot]")) fill(box); };
 
   async function loadPanels() {

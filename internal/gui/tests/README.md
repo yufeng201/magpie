@@ -2743,3 +2743,5 @@ tone, #26251E. It checks that the row draws that picture as a mask in the
 text colour, and that it shows in both themes, all five languages, at 980px
 and 420px, in Chromium and WebKit (chen2652). `ARTIFACT_DIR` keeps the row's
 screenshots.
+
+`plugin-panels.test.cjs` also checks a targeted `agent` panel inside its connected Agent row, its id/name context, absence from another agent and full-width layout in wide and narrow windows.

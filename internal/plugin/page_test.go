@@ -99,6 +99,8 @@ func TestWindowPanels(t *testing.T) {
 	write(`{"name":"p","magpie":{"panels":[
 		{"slot":"usage","file":"ui/usage.html","title":"Spend"},
 		{"slot":"provider","file":"ui/prov.html"},
+		{"slot":"agent","agent":"openviking-models","file":"ui/prov.html","title":"Settings"},
+		{"slot":"agent","file":"ui/prov.html"},
 		{"slot":"nowhere","file":"ui/usage.html"},
 		{"slot":"usage","file":"../secret.html"},
 		{"slot":"usage","file":"ui/missing.html"},
@@ -112,8 +114,14 @@ func TestWindowPanels(t *testing.T) {
 	for _, p := range w.Panels {
 		got = append(got, p.Slot+":"+p.Title+":"+filepath.Base(p.File))
 	}
-	if want := []string{"usage:Spend:usage.html", "provider::prov.html"}; !slices.Equal(got, want) {
+	if want := []string{"usage:Spend:usage.html", "provider::prov.html", "agent:Settings:prov.html"}; !slices.Equal(got, want) {
 		t.Errorf("panels %v, want %v", got, want)
+	}
+	if len(w.Panels) != 3 {
+		t.Fatalf("want three valid panels, got %d", len(w.Panels))
+	}
+	if w.Panels[2].Agent != "openviking-models" {
+		t.Errorf("agent panel lost its target: %+v", w.Panels[2])
 	}
 	if !slices.Equal(w.Reads, []string{"providers:list"}) {
 		t.Errorf("reads %v", w.Reads)

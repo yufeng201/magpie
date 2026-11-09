@@ -15,17 +15,20 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { test } = require("node:test");
+const { agentRow, reach } = require("./reader.cjs");
 const { chromium, webkit } = require("playwright");
 
 const assets = path.resolve(__dirname, "../assets");
 const example = path.resolve(__dirname, "../testdata/panel-plugin/ui");
 const bridge = path.resolve(__dirname, "../pagebridge.js");
 
-const NOTES = "1".repeat(32), SPEND = "2".repeat(32), SETS = "3".repeat(32), TALL = "4".repeat(32), BROKEN = "5".repeat(32), LIB = "6".repeat(32);
+const NOTES = "1".repeat(32), SPEND = "2".repeat(32), SETS = "3".repeat(32), TALL = "4".repeat(32), BROKEN = "5".repeat(32), LIB = "6".repeat(32), AGENT = "7".repeat(32);
 const panel = (tok, i, slot, title, file, name = "magpie-provider-notes", reads = ["usage:summary"]) => ({
   spec: "/x/" + name, name, key: `plugin-${name.replace("magpie-", "")}-${i}`, slot, title, reads, url: `/_magpie/plugin/${tok}/${file}`,
 });
 const allPanels = [
+  { ...panel(AGENT, 1, "agent", "Settings", "", "native-settings", []), url: "", agent: "openviking-models", settings: { groups: [{ title: "VLM", fields: [{ key: "vlmParameters.thinking", type: "boolean", title: "Thinking", optional: true }] }] } },
+  { ...panel(AGENT, 0, "agent", "Settings", "agent.html", "agent-settings", []), agent: "openviking-models" },
   panel(NOTES, 0, "provider", "Notes", "notes.html"),
   panel(SPEND, 1, "usage", "Top models today", "spend.html"),
   panel(SETS, 2, "settings", "Provider notes", "settings.html"),
@@ -48,7 +51,7 @@ function server(lang, seen, opts) {
     const json = (data) => route.fulfill({ json: data });
     if (url.pathname === "/boot.js") return route.fulfill({ contentType: "text/javascript", body: `window.bootPrefs = {lang:${JSON.stringify(lang)},theme:"light",web:false};` });
     if (url.pathname === "/wails/runtime.js") return route.fulfill({ contentType: "text/javascript", body: "export const Window = {};" });
-    if (url.pathname === "/api/state") return json({ agents: [], profiles: [], settings: { lang, theme: "light" } });
+    if (url.pathname === "/api/state") return json({ agents: [agentRow("openviking-models", "OpenViking"), agentRow("other", "Other")], profiles: [], settings: { lang, theme: "light" } });
     if (url.pathname === "/api/providers") return json({ providers: providerList, presets: [], excluded: [], gateway: { running: true, window: true }, plugins: [] });
     if (url.pathname === "/api/groups") return json({ groups: [], pools: [] });
     if (url.pathname === "/api/plugin-pages") return json(opts.pages);
@@ -59,6 +62,10 @@ function server(lang, seen, opts) {
     }
     if (url.pathname === "/api/plugin-pages/options") {
       const b = req.postDataJSON();
+      if (b.spec === "/x/native-settings") {
+        if (b.options) seen.nativeSaved = b.options;
+        return json(seen.nativeSaved || { future: "keep" });
+      }
       if (b.options) { seen.options.push(b); seen.saved = b.options; }
       return json(seen.saved || {});
     }
@@ -76,6 +83,7 @@ function server(lang, seen, opts) {
       else if (tok === TALL && rel === "tall.html") body = TALL_HTML;
       else if (tok === BROKEN && rel === "broken.html") body = BROKEN_HTML;
       else if (tok === BROKEN && rel === "app.js") body = seen.broken ? "throw new Error('fixture: the panel broke')" : "1";
+      else if (tok === AGENT && rel === "agent.html") body = LIB_HTML;
       else if (tok === LIB && rel === "index.html") body = LIB_HTML;
       if (body == null) return route.fulfill({ status: 404, body: "" });
       return route.fulfill({ status: 200, headers: { "Content-Security-Policy": "sandbox allow-scripts; connect-src 'none'", "Content-Type": type }, body });
@@ -160,6 +168,32 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
           await fixed.locator("#ok").waitFor();
           assert.equal(await broke.count(), 0, `${where}: the card gone`);
         }
+
+        // A per-agent panel is inside its expanded Settings row only;
+        // its options and context still belong to the plugin.
+        const ownLink = page.locator('.row.agent[data-id="openviking-models"] .ag-link');
+        await reach(page, ownLink); await ownLink.click();
+        const agentPanel = page.locator('.row.agent[data-id="openviking-models"] .plugin-slot[data-slot="agent"]');
+        await agentPanel.locator("iframe").waitFor();
+        const frameWidth = await agentPanel.locator("iframe").evaluate((f) => f.getBoundingClientRect().width);
+        assert.ok(frameWidth > (width > 1000 ? 500 : 250), `${where}: settings use the value column`);
+        const af = await frameReady(page, AGENT);
+        await af.waitForFunction(() => magpie.context.agent?.id === "openviking-models");
+        assert.equal(await af.evaluate(() => magpie.context.agent.name), "OpenViking", where);
+        assert.equal(await agentPanel.locator(".ag-k").first().textContent(), "Settings", where);
+        const native = agentPanel.locator(".plugin-native-settings");
+        await native.locator('[data-option="vlmParameters.thinking"] button').waitFor();
+        assert.equal(await native.locator("iframe,select").count(), 0, `${where}: native controls`);
+        await reach(page, native.locator('[data-option="vlmParameters.thinking"] button'));
+        await native.locator('[data-option="vlmParameters.thinking"] button').click();
+        await page.getByRole("menuitemradio", { name: await tr("On"), exact: true }).click();
+        await native.locator(".plugin-settings-actions button").press("Enter");
+        await native.getByRole("status").filter({ hasText: await tr("Saved") }).waitFor();
+        assert.deepEqual(seen.nativeSaved, { future: "keep", vlmParameters: { thinking: true } }, `${where}: only its own edited options`);
+        const otherLink = page.locator('.row.agent[data-id="other"] .ag-link');
+        await reach(page, otherLink); await otherLink.click();
+        assert.equal(await page.locator('.row.agent[data-id="other"] .plugin-slot[data-slot="agent"] iframe').count(), 0, `${where}: not on another agent`);
+        assert.ok(await fits(page, "#view-agents"), `${where}: per-agent settings fit`);
 
         // the end of Usage: what it declared it reads
         await page.evaluate(() => show("usage"));
